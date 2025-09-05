@@ -1,0 +1,6 @@
+1::: Hitbox Allignment
+2::: Calculation of score not only on the asteroids hit but also on the ammunition used and also the number of bullets acutualy hit
+3::: Cooldown and also delay of bullets 
+4::: Multiple Modes 
+5::: Instead of health kits we will get fuel cause
+Team Binary Brains Can You Hack It Hackathon

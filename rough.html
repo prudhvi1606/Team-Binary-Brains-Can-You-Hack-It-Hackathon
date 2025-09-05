@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>InterStellar</title>
+<style>
+  body { margin: 0; overflow: hidden; background: #000; font-family: Arial, sans-serif; }
+  canvas { display: block; position: absolute; top: 0; left: 0; }
+  #gameOverDialog {
+    display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    background: rgba(0,0,0,0.9); color: #fff; padding: 30px 40px; border-radius: 10px;
+    z-index: 10; width: 300px; text-align:center; box-shadow: 0 0 15px #fff;
+  }
+  #restartBtn { padding: 10px 20px; font-size: 16px; cursor:pointer; border-radius:6px; border:none; background:#00bcd4; color:#000; }
+  .popup {
+    display:none; position:absolute; top:18px; left:50%; transform:translateX(-50%);
+    padding:10px 18px; border-radius:6px; font-weight:700; z-index:20; animation:fadeout 2s forwards;
+  }
+  #doubleOn { background: rgba(255,215,0,0.95); color:#000; }
+  #doubleOff { background: rgba(255,80,80,0.95); color:#fff; }
+  @keyframes fadeout { 0%{opacity:1} 80%{opacity:1} 100%{opacity:0} }
+</style>
+</head>
+<body>
+
+<canvas id="bgCanvas"></canvas>
+<canvas id="gameCanvas" width="600" height="400"></canvas>
+
+<div id="gameOverDialog">
+  <h2>Game Over</h2>
+  <p id="finalScore">Your Score: 0</p>
+  <button id="restartBtn">Restart</button>
+</div>
+
+<div id="doubleOn" class="popup">DOUBLE MODE ACTIVATED!</div>
+<div id="doubleOff" class="popup">DOUBLE MODE DEACTIVATED</div>
+
+<script>
+/* ---------- BACKGROUND PARTICLES ---------- */
+const bgCanvas = document.getElementById('bgCanvas');
+const bgCtx = bgCanvas.getContext('2d');
+function resizeBg() { bgCanvas.width = window.innerWidth; bgCanvas.height = window.innerHeight; }
+resizeBg(); window.addEventListener('resize', resizeBg);
+
+class Particle {
+  constructor(effect){ this.effect=effect; this.r = Math.random()*3+1; this.x=Math.random()*effect.width; this.y=Math.random()*effect.height; this.vx=Math.random()-0.5; this.vy=Math.random()-0.5; }
+  update(){ this.x+=this.vx; this.y+=this.vy; if(this.x<0||this.x>this.effect.width) this.vx*=-1; if(this.y<0||this.y>this.effect.height) this.vy*=-1; }
+  draw(ctx){ ctx.fillStyle='white'; ctx.beginPath(); ctx.arc(this.x,this.y,this.r,0,Math.PI*2); ctx.fill(); }
+}
+class Effect { constructor(canvas){ this.canvas=canvas; this.width=canvas.width; this.height=canvas.height; this.particles=Array.from({length:120}, ()=>new Particle(this)); }
+  handle(ctx){ this.particles.forEach(p=>{ p.update(); p.draw(ctx); }); }
+}
+const bgEffect = new Effect(bgCanvas);
+(function animateBG(){ bgCtx.clearRect(0,0,bgCanvas.width,bgCanvas.height); bgEffect.handle(bgCtx); requestAnimationFrame(animateBG); })();
+
+/* ---------- GAME CLASSES ---------- */
+class Player {
+  constructor(game){
+    this.game = game;
+    this.x = 20; // fixed to left
+    this.y = game.height/2 - 20;
+    this.width = 40; this.height = 40;
+    this.health = 5;
+    this.ammo = 20; this.maxAmmo = 20;
+    this.ammoTimer = 0; this.ammoRechargeInterval = 500;
+    this.projectiles = [];
+    this.shootCooldown = 0; this.shootCooldownMax = 180; // ms
+  }
+  update(delta){
+    if(this.ammo < this.maxAmmo){ this.ammoTimer += delta; if(this.ammoTimer >= this.ammoRechargeInterval){ this.ammo++; this.ammoTimer = 0; } }
+    if(this.shootCooldown > 0) this.shootCooldown -= delta;
+    this.projectiles.forEach(p => p.update());
+    this.projectiles = this.projectiles.filter(p => !p.markedForDeletion);
+  }
+  draw(ctx){
+    ctx.fillStyle = 'cyan'; ctx.fillRect(this.x,this.y,this.width,this.height);
+    this.projectiles.forEach(p => p.draw(ctx));
+  }
+  // Returns true if a shot was fired
+  shoot(doubleMode=false){
+    if(this.shootCooldown > 0) return false;
+    // Determine ammo usage
+    if(doubleMode){
+      if(this.ammo >= 2){
+        this.projectiles.push(new Projectile(this.game, this.x + this.width, this.y + 6));
+        this.projectiles.push(new Projectile(this.game, this.x + this.width, this.y + this.height - 10));
+        this.ammo -= 2;
+      } else if(this.ammo === 1){
+        this.projectiles.push(new Projectile(this.game, this.x + this.width, this.y + this.height/2));
+        this.ammo -= 1;
+      } else {
+        return false;
+      }
+    } else {
+      if(this.ammo <= 0) return false;
+      this.projectiles.push(new Projectile(this.game, this.x + this.width, this.y + this.height/2));
+      this.ammo -= 1;
+    }
+    this.shootCooldown = this.shootCooldownMax;
+    return true;
+  }
+}
+
+class Projectile {
+  constructor(game,x,y){ this.game=game; this.x=x; this.y=y; this.width=10; this.height=3; this.speed=8; this.markedForDeletion=false; }
+  update(){ this.x += this.speed; if(this.x > this.game.width) this.markedForDeletion = true; }
+  draw(ctx){ ctx.fillStyle='yellow'; ctx.fillRect(this.x,this.y,this.width,this.height); }
+}
+
+class Asteroid {
+  constructor(game){ this.game=game; this.size=Math.random()*30+20; this.x=game.width; this.y=Math.random()*(game.height-this.size); this.speed=Math.random()*2+2; this.health=Math.ceil(this.size/10); this.markedForDeletion=false; }
+  update(){ this.x -= this.speed; if(this.x + this.size < 0) this.markedForDeletion = true; }
+  draw(ctx){ ctx.fillStyle='gray'; ctx.beginPath(); ctx.arc(this.x + this.size/2, this.y + this.size/2, this.size/2, 0, Math.PI*2); ctx.fill(); }
+}
+
+class Game {
+  constructor(width,height){
+    this.width = width; this.height = height;
+    this.reset();
+  }
+  reset(){
+    this.player = new Player(this);
+    this.asteroids = []; this.asteroidTimer = 0; this.asteroidInterval = 1400;
+    this.score = 0; this.gameOver = false; this.time = 0; this.maxTime = 60000;
+  }
+  update(delta){
+    if(this.gameOver) return;
+    this.time += delta; if(this.time > this.maxTime) this.gameOver = true;
+    this.player.update(delta);
+    this.asteroidTimer += delta;
+    if(this.asteroidTimer > this.asteroidInterval){ this.asteroids.push(new Asteroid(this)); this.asteroidTimer = 0; if(this.asteroidInterval > 600) this.asteroidInterval -= 6; }
+    this.asteroids.forEach(a => a.update());
+    this.asteroids = this.asteroids.filter(a => !a.markedForDeletion);
+    this.checkCollisions();
+  }
+  draw(ctx){
+    this.player.draw(ctx); this.asteroids.forEach(a => a.draw(ctx)); this.drawUI(ctx);
+  }
+  drawUI(ctx){
+    ctx.fillStyle='white'; ctx.font='18px Arial';
+    ctx.fillText(`Health: ${this.player.health}`, 20, 30);
+    ctx.fillText(`Ammo: ${this.player.ammo}`, 20, 60);
+    ctx.fillText(`Score: ${this.score}`, 20, 90);
+    ctx.fillText(`Time: ${Math.floor((this.maxTime - this.time)/1000)}`, 20, 120);
+  }
+  checkCollisions(){
+    this.player.projectiles.forEach(p=>{
+      this.asteroids.forEach(a=>{
+        if(p.x < a.x + a.size && p.x + p.width > a.x && p.y < a.y + a.size && p.y + p.height > a.y){
+          a.health--; p.markedForDeletion = true;
+          if(a.health <= 0){ a.markedForDeletion = true; this.score += 10; }
+        }
+      });
+    });
+    this.asteroids.forEach(a=>{
+      if(this.player.x < a.x + a.size && this.player.x + this.player.width > a.x && this.player.y < a.y + a.size && this.player.y + this.player.height > a.y){
+        a.markedForDeletion = true;
+        this.player.health--;
+        if(this.player.health <= 0) this.gameOver = true;
+      }
+    });
+  }
+}
+
+/* ---------- BOOT / INPUT / ANIMATION ---------- */
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+let game = new Game(canvas.width, canvas.height);
+
+const dialog = document.getElementById('gameOverDialog');
+const finalScore = document.getElementById('finalScore');
+const restartBtn = document.getElementById('restartBtn');
+const doubleOn = document.getElementById('doubleOn');
+const doubleOff = document.getElementById('doubleOff');
+
+let animationId = null;
+let lastTime = 0;
+
+// Input state for robust single/double/hold detection:
+let isPointerDown = false;
+let pointerDownAt = 0;
+let shootAccum = 0;
+const holdThreshold = 220;       // ms to consider "hold" (continuous firing)
+const doubleClickWindow = 300;   // ms between ups to treat as double click
+const continuousShootInterval = 160; // ms between shots while holding
+
+// double mode state
+let doubleMode = false;
+let doubleCooldown = false;
+const doubleModeDuration = 7000; // 2s
+const doubleModeCooldown = 5000; // 5s
+
+// click timer for distinguishing single vs double
+let clickTimer = null;
+let lastDownDuration = 0;
+
+function showPopup(el){
+  el.style.display = 'block';
+  setTimeout(()=> el.style.display = 'none', 1800);
+}
+
+function showGameOver(score){
+  finalScore.textContent = `Your Score: ${score}`;
+  dialog.style.display = 'block';
+}
+function hideGameOver(){ dialog.style.display = 'none'; }
+
+function startGameLoop(){
+  if(animationId) cancelAnimationFrame(animationId);
+  lastTime = performance.now();
+  animationId = requestAnimationFrame(animate);
+}
+function stopGameLoop(){ if(animationId) cancelAnimationFrame(animationId); animationId = null; }
+
+function resetAll(){
+  hideGameOver();
+  if(clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
+  isPointerDown = false; pointerDownAt = 0; shootAccum = 0;
+  doubleMode = false; doubleCooldown = false;
+  game = new Game(canvas.width, canvas.height);
+  startGameLoop();
+}
+
+restartBtn.addEventListener('click', () => {  resetAll(); });
+
+// Pointer handling (works for mouse & touch)
+canvas.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  isPointerDown = true;
+  pointerDownAt = performance.now();
+  shootAccum = 0;
+});
+
+canvas.addEventListener('pointerup', e => {
+  e.preventDefault();
+  const now = performance.now();
+  const downDuration = now - pointerDownAt;
+  lastDownDuration = downDuration;
+  isPointerDown = false;
+
+  // If there's an existing clickTimer, this is the 2nd click (double)
+  if(clickTimer){
+    clearTimeout(clickTimer);
+    clickTimer = null;
+    // DOUBLE CLICK detected
+    if(!doubleCooldown){
+      doubleMode = true;
+      doubleCooldown = true;
+      showPopup(doubleOn);
+      // Deactivate after duration
+      setTimeout(()=>{
+        doubleMode = false;
+        showPopup(doubleOff);
+      }, doubleModeDuration);
+      // Cooldown timer
+      setTimeout(()=> { doubleCooldown = false; }, doubleModeCooldown);
+    }
+  } else {
+    // Start a short timer: if another pointerup comes within doubleClickWindow => double click
+    // otherwise, confirm single click (if short press)
+    clickTimer = setTimeout(()=>{
+      // single click confirmed
+      clickTimer = null;
+      if(lastDownDuration < holdThreshold){
+        // single quick click: fire once (respecting doubleMode if active)
+        game.player.shoot(doubleMode);
+      }
+      // else it was a hold-release (continuous shots already handled during hold)
+    }, doubleClickWindow);
+  }
+});
+
+// Keep ship fixed on left (x fixed) but follow vertical mouse
+canvas.addEventListener('pointermove', e => {
+  const rect = canvas.getBoundingClientRect();
+  const mouseY = e.clientY - rect.top;
+  game.player.y = Math.min(Math.max(mouseY - game.player.height/2, 0), game.height - game.player.height);
+});
+
+/* ---------- Animation ---------- */
+function animate(timeStamp){
+  const dt = timeStamp - lastTime;
+  lastTime = timeStamp;
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  // Continuous shooting on hold after holdThreshold
+  if(isPointerDown){
+    const heldFor = performance.now() - pointerDownAt;
+    if(heldFor >= holdThreshold){
+      shootAccum += dt;
+      // attempt shots at interval; player.shoot() returns whether it actually fired (respects player cooldown/ammo)
+      if(shootAccum >= continuousShootInterval){
+        const fired = game.player.shoot(doubleMode);
+        if(fired) shootAccum = 0;
+        else shootAccum = Math.max(0, shootAccum - 50); // small backoff if couldn't fire (ammo or cooldown)
+      }
+    }
+  } else {
+    shootAccum = 0;
+  }
+
+  // Update & draw
+  game.update(dt);
+  game.draw(ctx);
+
+  if(!game.gameOver){
+    animationId = requestAnimationFrame(animate);
+  } else {
+    stopGameLoop();
+    showGameOver(game.score);
+  }
+}
+
+// start
+startGameLoop();
+resetAll(); // ensure clean start
+
+// Expose helpful debugging if needed:
+// window._game = game;
+</script>
+</body>
+</html>

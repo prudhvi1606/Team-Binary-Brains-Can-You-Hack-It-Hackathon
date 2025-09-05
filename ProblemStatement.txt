@@ -1,0 +1,11 @@
+Problem Statement::
+Creating a Game based on single double swipe and drag touches/click's
+Our Aproch:::::
+Based on the above project statement many ideas simplyfing this and thinking about it we got into a simple game type prototype where 
+a spaceship is travelling through a dust of space rocks and its goal is to get past the dust safely and also to reduce the number of 
+ammunition and also with minimal damage.
+What we will use :::
+HTML5,javascript,CSS
+Our game also has:::
+the Game created rocks and extra objects in the background are randomly generated using Math functions. We calculate the score not only 
+by the survial from asteroids but also from the bullets fires to match some real-life progress.....
