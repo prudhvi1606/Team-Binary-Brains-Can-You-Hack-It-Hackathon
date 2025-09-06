@@ -1,9 +1,8 @@
-```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Combined Space Miner & Ship Game</title>
+<title>Combined Space Miner & Ship Game — Fixed Restart</title>
 <style>
   body { margin: 0; overflow: hidden; background: #000; font-family: Arial, sans-serif; }
   canvas { display: block; margin: 0 auto; position: absolute; top: 0; left: 0; }
@@ -42,9 +41,18 @@
 <div id="doubleGunPopup">Double Gun Mode Activated!</div>
 
 <script>
-// --- Starfield background (connected stars) ---
+/* ----------------------------- DOM references ---------------------------- */
 const bgCanvas = document.getElementById('bgCanvas');
 const bgCtx = bgCanvas.getContext('2d');
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+const gameOverDialog = document.getElementById('gameOverDialog');
+const finalScoreText = document.getElementById('finalScore');
+const restartBtn = document.getElementById('restartBtn');
+const doubleGunPopup = document.getElementById('doubleGunPopup');
+
+/* ---------------------------- Background starfield ---------------------- */
 function resizeBgCanvas() {
   bgCanvas.width = window.innerWidth;
   bgCanvas.height = window.innerHeight;
@@ -158,34 +166,24 @@ function animateBackground(){
 }
 animateBackground();
 
-
-// --- Images ---
+/* ------------------------------- Images -------------------------------- */
 const asteroidImgs = [
   (() => { const img = new Image(); img.src = "asteroid1.jpg"; return img; })(),
   (() => { const img = new Image(); img.src = "asteroid3.jpg"; return img; })()
 ];
 const playerShipImg = new Image();
-playerShipImg.src = "sapceship1.jpg"; // Ensure path/filename is correct
+playerShipImg.src = "spaceship.jpg";
 
+/* -------------------------------- Sounds -------------------------------- */
+const shootAudio = new Audio('shootfin.mp3'); shootAudio.volume = 0.5;
+const gameOverAudio = new Audio('game0ver1.mp3'); gameOverAudio.volume = 0.8;
+const winAudio = new Audio('win_1.mp3'); winAudio.volume = 0.8;
 
-// --- Sound assets ---
-const shootAudio = new Audio('shootfin.mp3');
-shootAudio.volume = 0.5;
-const gameOverAudio = new Audio('game0ver1.mp3');
-gameOverAudio.volume = 0.8;
-const winAudio = new Audio('win_1.mp3');
-winAudio.volume = 0.8;
-
-// --- Game classes ---
+/* ------------------------------ Game classes ---------------------------- */
 class FloatingText {
   constructor(text, x, y, color="yellow") {
-    this.text = text;
-    this.x = x;
-    this.y = y;
-    this.color = color;
-    this.alpha = 1;
-    this.lifetime = 1000;
-    this.startTime = Date.now();
+    this.text = text; this.x = x; this.y = y; this.color = color;
+    this.alpha = 1; this.lifetime = 1000; this.startTime = Date.now();
   }
   draw(ctx) {
     ctx.fillStyle = `rgba(${this.color === "red" ? "255,0,0" : this.color === "lime" ? "0,255,0" : "255,255,0"},${this.alpha})`;
@@ -212,16 +210,11 @@ class Player {
     this.spring = 0.18;
     this.damping = 0.66;
     this.health = 5;
-    this.ammo = 50;
-    this.maxAmmo = 50;
-    this.ammoTimer = 0;
-    this.ammoRechargeInterval = 400;
+    this.ammo = 50; this.maxAmmo = 50; this.ammoTimer = 0; this.ammoRechargeInterval = 400;
     this.projectiles = [];
-    this.shootCooldown = 0;
-    this.shootCooldownMax = 200;
+    this.shootCooldown = 0; this.shootCooldownMax = 200;
     this.time = 0;
-    this.shipWidth = 120;
-    this.shipHeight = 72;
+    this.shipWidth = 120; this.shipHeight = 72;
   }
   update(deltaTime) {
     this.time += deltaTime;
@@ -230,35 +223,29 @@ class Player {
     this.velocityY *= this.damping;
     this.displayY += this.velocityY;
     if(this.displayY < 0) { this.displayY = 0; this.velocityY = 0; }
-    if(this.displayY > this.game.height - this.shipWidth) {
-      this.displayY = this.game.height - this.shipWidth; this.velocityY = 0;
-    }
+    if(this.displayY > this.game.height - this.shipWidth) { this.displayY = this.game.height - this.shipWidth; this.velocityY = 0; }
     if (this.ammo < this.maxAmmo) {
       this.ammoTimer += deltaTime;
-      if (this.ammoTimer > this.ammoRechargeInterval) {
-        this.ammo++;
-        this.ammoTimer = 0;
-      }
+      if (this.ammoTimer > this.ammoRechargeInterval) { this.ammo++; this.ammoTimer = 0; }
     }
     if (this.shootCooldown > 0) this.shootCooldown -= deltaTime;
     this.projectiles.forEach(p => p.update());
     this.projectiles = this.projectiles.filter(p => !p.markedForDeletion);
   }
   draw(ctx) {
-    const hoverAmplitude = 6;
-    const hoverSpeed = 0.002;
+    const hoverAmplitude = 6; const hoverSpeed = 0.002;
     const hoverY = Math.sin(this.time * hoverSpeed) * hoverAmplitude;
     if (playerShipImg.complete && playerShipImg.naturalWidth) {
-      const shipDrawWidth = this.shipWidth;
-      const scale = shipDrawWidth / playerShipImg.height;
-      const shipDrawHeight = playerShipImg.width * scale;
-      this.shipHeight = shipDrawWidth;
-      const posX = this.x + shipDrawHeight/2;
-      const posY = this.displayY + hoverY + shipDrawWidth/2;
+      // draw image with a safe rotation placement
+      const drawW = this.shipWidth;
+      const aspect = playerShipImg.width / playerShipImg.height || 1;
+      const drawH = drawW / aspect;
+      const posX = this.x + drawW/2;
+      const posY = this.displayY + hoverY + drawH/2;
       ctx.save();
       ctx.translate(posX, posY);
       ctx.rotate(-Math.PI/2);
-      ctx.drawImage(playerShipImg, -shipDrawWidth/2, -shipDrawHeight/2, shipDrawWidth, shipDrawHeight);
+      ctx.drawImage(playerShipImg, -drawW/2, -drawH/2, drawW, drawH);
       ctx.restore();
     } else {
       ctx.save();
@@ -271,12 +258,10 @@ class Player {
     this.projectiles.forEach(p => p.draw(ctx));
   }
   shoot() {
-    const hoverAmplitude = 6;
-    const hoverSpeed = 0.002;
+    const hoverAmplitude = 6; const hoverSpeed = 0.002;
     const hoverY = Math.sin(this.time * hoverSpeed) * hoverAmplitude;
     if (this.ammo > 0 && this.shootCooldown <= 0) {
-      shootAudio.currentTime = 0;
-      shootAudio.play();
+      try { shootAudio.currentTime = 0; shootAudio.play(); } catch(e){}
       let gunX = this.x + this.shipWidth;
       let gunY = this.displayY + hoverY + this.shipWidth/2 - 4;
       if (this.game.doubleGunActive) {
@@ -293,41 +278,18 @@ class Player {
 }
 
 class Projectile {
-  constructor(game, x, y) {
-    this.game = game;
-    this.x = x;
-    this.y = y;
-    this.width = 54;
-    this.height = 9;
-    this.speed = 10;
-    this.markedForDeletion = false;
-  }
-  update() {
-    this.x += this.speed;
-    if (this.x > this.game.width) this.markedForDeletion = true;
-  }
-  draw(ctx) {
-    ctx.save();
-    ctx.fillStyle = "#2196f3";
-    ctx.fillRect(this.x, this.y, this.width, this.height);
-    ctx.restore();
-  }
+  constructor(game, x, y) { this.game = game; this.x = x; this.y = y; this.width = 54; this.height = 9; this.speed = 20; this.markedForDeletion = false; }
+  update() { this.x += this.speed; if (this.x > this.game.width) this.markedForDeletion = true; }
+  draw(ctx) { ctx.save(); ctx.fillStyle = "#2196f3"; ctx.fillRect(this.x, this.y, this.width, this.height); ctx.restore(); }
 }
 
 class FuelPack {
   constructor(game) {
-    this.game = game;
-    this.size = 28;
-    this.x = this.game.width + this.size;
-    this.y = Math.random() * (this.game.height - this.size);
-    this.speed = 1.8 + Math.random();
-    this.markedForDeletion = false;
+    this.game = game; this.size = 28; this.x = this.game.width + this.size; this.y = Math.random() * (this.game.height - this.size);
+    this.speed = 2.5+ Math.random()*2; this.markedForDeletion = false;
   }
-  update() {
-    this.x -= this.speed;
-    if (this.x + this.size < 0) this.markedForDeletion = true;
-  }
-  draw(ctx) {
+  update() { this.x -= this.speed; if (this.x + this.size < 0) this.markedForDeletion = true; }
+  draw(ctx){
     ctx.save();
     ctx.translate(this.x + this.size/2, this.y + this.size/2);
     ctx.rotate(Math.PI/4);
@@ -355,7 +317,7 @@ class Asteroid {
     this.size = Math.random() * 40 + 40;
     this.x = this.game.width + this.size/2;
     this.y = Math.random() * (this.game.height - this.size);
-    this.speed = Math.random() * 2 + 1;
+    this.speed = Math.random() * 4 + 2;
     this.health = Math.ceil(this.size / 15);
     this.markedForDeletion = false;
     this.rotation = Math.random() * Math.PI * 2;
@@ -363,12 +325,7 @@ class Asteroid {
     this.fireT = Math.random() * 99999;
     this.imgIdx = Math.floor(Math.random() * asteroidImgs.length);
   }
-  update() {
-    this.x -= this.speed;
-    this.rotation += this.rotationSpeed;
-    this.fireT += 0.23;
-    if (this.x + this.size < 0) this.markedForDeletion = true;
-  }
+  update() { this.x -= this.speed; this.rotation += this.rotationSpeed; this.fireT += 0.23; if (this.x + this.size < 0) this.markedForDeletion = true; }
   draw(ctx) {
     const centerX = this.x + this.size / 2;
     const centerY = this.y + this.size / 2;
@@ -411,100 +368,65 @@ class Asteroid {
 
 class Game {
   constructor(width, height) {
-    this.width = width;
-    this.height = height;
+    this.width = width; this.height = height;
     this.player = new Player(this);
-    this.asteroids = [];
-    this.fuelPacks = [];
-    this.asteroidTimer = 0;
-    this.asteroidInterval = 2800;
-    this.fuelPackTimer = 0;
-    this.fuelPackInterval = 6300;
-    this.score = 0;
-    this.shotsFired = 0;
-    this.successfulHits = 0;
-    this.fuel = 100;
-    this.maxFuel = 100;
-    this.fuelDecreasePerSecond = 4;
-    this.gameOver = false;
-    this.win = false;
-    this.time = 0;
-    this.maxTime = 60000; // 60 seconds gameplay
-    this.doubleGunActive = false;
-    this.doubleGunTimer = 0;
-    this.doubleGunCooldown = 0;
-    this.floatingTexts = [];
-    this.gameOverAudioPlayed = false;
-    this.winAudioPlayed = false;
+    this.asteroids = []; this.fuelPacks = [];
+    this.asteroidTimer = 0; this.asteroidInterval = 2800;
+    this.fuelPackTimer = 0; this.fuelPackInterval = 8300;
+    this.score = 0; this.shotsFired = 0; this.successfulHits = 0;
+    this.fuel = 100; this.maxFuel = 100; this.fuelDecreasePerSecond = 4;
+    this.gameOver = false; this.win = false; this.time = 0; this.maxTime = 60000;
+    this.doubleGunActive = false; this.doubleGunTimer = 0; this.doubleGunCooldown = 0;
+    this.floatingTexts = []; this.gameOverAudioPlayed = false; this.winAudioPlayed = false;
   }
   update(deltaTime) {
     if (this.gameOver) return;
-
     this.time += deltaTime;
     this.fuel -= this.fuelDecreasePerSecond * (deltaTime / 1000);
     if (this.fuel < 0) this.fuel = 0;
-
-    if (this.fuel === 0) {
-      this.triggerGameOver();
-    }
+    if (this.fuel === 0) { this.triggerGameOver(); }
     if (this.time >= this.maxTime && !this.gameOver) {
-      if (this.player.health > 0 && this.fuel > 0) {
-        this.triggerWin();
-      } else if (!this.gameOver) {
-        this.triggerGameOver();
-      }
+      if (this.player.health > 0 && this.fuel > 0) { this.triggerWin(); }
+      else if (!this.gameOver) { this.triggerGameOver(); }
     }
-
     this.player.update(deltaTime);
-
     this.asteroidTimer += deltaTime;
-    if (this.asteroidTimer > this.asteroidInterval) {
-      this.asteroids.push(new Asteroid(this));
-      this.asteroidTimer = 0;
-    }
+    if (this.asteroidTimer > this.asteroidInterval) { this.asteroids.push(new Asteroid(this)); this.asteroidTimer = 0; }
     this.asteroids.forEach(a => a.update());
     this.asteroids = this.asteroids.filter(a => !a.markedForDeletion);
-
     this.fuelPackTimer += deltaTime;
-    if (this.fuelPackTimer > this.fuelPackInterval) {
-      this.fuelPacks.push(new FuelPack(this));
-      this.fuelPackTimer = 0;
-    }
+    if (this.fuelPackTimer > this.fuelPackInterval) { this.fuelPacks.push(new FuelPack(this)); this.fuelPackTimer = 0; }
     this.fuelPacks.forEach(f => f.update());
     this.fuelPacks = this.fuelPacks.filter(f => !f.markedForDeletion);
-
     this.floatingTexts = this.floatingTexts.filter(ft => ft.update());
-
     if (this.doubleGunActive) {
       this.doubleGunTimer -= deltaTime;
       if (this.doubleGunTimer <= 0) {
         this.doubleGunActive = false;
-        document.getElementById('doubleGunPopup').textContent = "Double Gun Mode Ended!";
-        document.getElementById('doubleGunPopup').style.display = 'block';
-        setTimeout(()=>document.getElementById('doubleGunPopup').style.display="none", 2000);
+        if (doubleGunPopup) {
+          doubleGunPopup.textContent = "Double Gun Mode Ended!";
+          doubleGunPopup.style.display = 'block';
+          setTimeout(()=>doubleGunPopup.style.display="none", 2000);
+        }
       }
     }
     if (this.doubleGunCooldown > 0) this.doubleGunCooldown -= deltaTime;
-
     this.checkCollisions();
   }
   triggerGameOver() {
     if (!this.gameOver) {
       this.gameOver = true;
       if (!this.gameOverAudioPlayed) {
-        gameOverAudio.currentTime = 0;
-        gameOverAudio.play();
+        try { gameOverAudio.currentTime = 0; gameOverAudio.play(); } catch(e){}
         this.gameOverAudioPlayed = true;
       }
     }
   }
   triggerWin() {
     if (!this.win) {
-      this.win = true;
-      this.gameOver = true;
+      this.win = true; this.gameOver = true;
       if (!this.winAudioPlayed) {
-        winAudio.currentTime = 0;
-        winAudio.play();
+        try { winAudio.currentTime = 0; winAudio.play(); } catch(e){}
         this.winAudioPlayed = true;
       }
     }
@@ -518,9 +440,7 @@ class Game {
   }
   drawUI(ctx) {
     ctx.save();
-    ctx.textAlign = "right";
-    ctx.fillStyle = 'white';
-    ctx.font = '18px Arial';
+    ctx.textAlign = "right"; ctx.fillStyle = 'white'; ctx.font = '18px Arial';
     const lines = [
       `Health: ${"❤️".repeat(this.player.health)}`,
       `Ammo: ${this.player.ammo}`,
@@ -529,41 +449,25 @@ class Game {
       `Time: ${Math.floor((this.maxTime - this.time) / 1000)}`
     ];
     let startY = 40;
-    lines.forEach((line, i) => {
-      ctx.fillText(line, this.width - 20, startY + (26 * i));
-    });
-
-    // Fuel bar
-    let barWidth = 180;
-    let barHeight = 17;
-    let barX = this.width - 30 - barWidth/2;
-    let barY = startY + 26 * lines.length + 18;
-    ctx.globalAlpha = 0.22;
-    ctx.fillStyle = "#fff";
-    ctx.fillRect(barX, barY, barWidth, barHeight);
+    lines.forEach((line, i) => ctx.fillText(line, this.width - 20, startY + (26 * i)));
+    let barWidth = 180; let barHeight = 17;
+    let barX = this.width - 30 - barWidth/2; let barY = startY + 26 * lines.length + 18;
+    ctx.globalAlpha = 0.22; ctx.fillStyle = "#fff"; ctx.fillRect(barX, barY, barWidth, barHeight);
     ctx.globalAlpha = 1;
     let fuelRatio = Math.max(0, Math.min(1, this.fuel/this.maxFuel));
-    ctx.fillStyle = "#ff4444";
-    ctx.fillRect(barX, barY, barWidth * fuelRatio, barHeight);
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = "#fff";
-    ctx.strokeRect(barX, barY, barWidth, barHeight);
-    ctx.fillStyle = "#fff";
-    ctx.font = "15px Arial";
-    ctx.textAlign = "center";
+    ctx.fillStyle = "#ff4444"; ctx.fillRect(barX, barY, barWidth * fuelRatio, barHeight);
+    ctx.lineWidth = 2; ctx.strokeStyle = "#fff"; ctx.strokeRect(barX, barY, barWidth, barHeight);
+    ctx.fillStyle = "#fff"; ctx.font = "15px Arial"; ctx.textAlign = "center";
     ctx.fillText("Fuel", barX + barWidth/2, barY + barHeight + 18);
-
     ctx.restore();
   }
   checkCollisions() {
     this.player.projectiles.forEach(projectile => {
       this.asteroids.forEach(asteroid => {
-        if (
-          projectile.x < asteroid.x + asteroid.size &&
-          projectile.x + projectile.width > asteroid.x &&
-          projectile.y < asteroid.y + asteroid.size &&
-          projectile.y + projectile.height > asteroid.y
-        ) {
+        if (projectile.x < asteroid.x + asteroid.size &&
+            projectile.x + projectile.width > asteroid.x &&
+            projectile.y < asteroid.y + asteroid.size &&
+            projectile.y + projectile.height > asteroid.y) {
           asteroid.health--;
           projectile.markedForDeletion = true;
           if (asteroid.health <= 0) {
@@ -578,12 +482,10 @@ class Game {
     });
 
     this.asteroids.forEach(asteroid => {
-      if (
-        this.player.x < asteroid.x + asteroid.size &&
-        this.player.x + this.player.shipWidth > asteroid.x &&
-        this.player.displayY < asteroid.y + asteroid.size &&
-        this.player.displayY + this.player.shipWidth > asteroid.y
-      ) {
+      if (this.player.x < asteroid.x + asteroid.size &&
+          this.player.x + this.player.shipWidth > asteroid.x &&
+          this.player.displayY < asteroid.y + asteroid.size &&
+          this.player.displayY + this.player.shipWidth > asteroid.y) {
         asteroid.markedForDeletion = true;
         let damage = asteroid.size < 50 ? 1 : 2;
         this.player.health -= damage;
@@ -597,10 +499,7 @@ class Game {
       let pTop = this.player.displayY, pBottom = this.player.displayY + this.player.shipWidth;
       let fLeft = fuelPack.x, fRight = fuelPack.x + fuelPack.size;
       let fTop = fuelPack.y, fBottom = fuelPack.y + fuelPack.size;
-      if (
-        pLeft < fRight && pRight > fLeft &&
-        pTop < fBottom && pBottom > fTop
-      ) {
+      if (pLeft < fRight && pRight > fLeft && pTop < fBottom && pBottom > fTop) {
         fuelPack.markedForDeletion = true;
         let fuelAmount = 38;
         this.fuel = Math.min(this.fuel + fuelAmount, this.maxFuel);
@@ -610,32 +509,37 @@ class Game {
   }
 }
 
-
-
-// --- MAIN LOOP & CONTROLS ---
-const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
-let game;
+/* ---------------------------- Main loop & control ---------------------- */
+let game = null;
 let lastTime = 0;
 let isMouseDown = false;
-let animId;
+let animId = null;
 
 function startGame() {
+  // stop any running animation first
+  if (animId) { cancelAnimationFrame(animId); animId = null; }
+  // stop audios
+  try { shootAudio.pause(); shootAudio.currentTime = 0; } catch(e){}
+  try { gameOverAudio.pause(); gameOverAudio.currentTime = 0; } catch(e){}
+  try { winAudio.pause(); winAudio.currentTime = 0; } catch(e){}
+
   game = new Game(canvas.width, canvas.height);
-  lastTime = 0;
+  lastTime = performance.now(); // important: start from now to avoid giant delta
   isMouseDown = false;
-  gameOverDialog.style.display = 'none';
+  if (gameOverDialog) gameOverDialog.style.display = 'none';
+  // start the animation loop
   animId = requestAnimationFrame(animate);
 }
 
-function animate(timeStamp=0) {
-  const deltaTime = timeStamp - lastTime;
+function animate(timeStamp) {
+  if (!game) return; // guard
+  // clamp deltaTime to reasonable value to avoid giant leaps after tab-switch or pause
+  let deltaTime = timeStamp - lastTime;
+  if (deltaTime > 1000) deltaTime = 16 * 4; // max cap (~64ms)
   lastTime = timeStamp;
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-
   if (isMouseDown) game.player.shoot();
-
   game.update(deltaTime);
   game.draw(ctx);
 
@@ -643,44 +547,47 @@ function animate(timeStamp=0) {
     animId = requestAnimationFrame(animate);
   } else {
     let accuracy = game.shotsFired ? ((game.successfulHits / game.shotsFired)*100).toFixed(1) : "0";
-    finalScoreText.textContent = `Your Score: ${game.score} | Accuracy: ${accuracy}%`;
+    if (finalScoreText) finalScoreText.textContent = `Your Score: ${game.score} | Accuracy: ${accuracy}%`;
     if (game.win) {
-      document.getElementById('gameOverTitle').textContent = "🎉 You Win!";
+      if (document.getElementById('gameOverTitle')) document.getElementById('gameOverTitle').textContent = "🎉 You Win!";
     } else {
-      document.getElementById('gameOverTitle').textContent = "Game Over";
+      if (document.getElementById('gameOverTitle')) document.getElementById('gameOverTitle').textContent = "Game Over";
     }
-    gameOverDialog.style.display = 'block';
+    if (gameOverDialog) gameOverDialog.style.display = 'block';
   }
 }
 
-// Controls
-const gameOverDialog = document.getElementById('gameOverDialog');
-const finalScoreText = document.getElementById('finalScore');
-const restartBtn = document.getElementById('restartBtn');
-const doubleGunPopup = document.getElementById('doubleGunPopup');
-
+/* ------------------------------- Controls ------------------------------- */
 restartBtn.addEventListener('click', () => {
-  cancelAnimationFrame(animId);
+  // Cancel any running frame, reset and start fresh
+  if (animId) cancelAnimationFrame(animId);
+  animId = null;
+  // ensure dialog hidden
+  if (gameOverDialog) gameOverDialog.style.display = 'none';
+  // reset game audio flags by recreating new Game instance on start
   startGame();
 });
 
 canvas.addEventListener('mousemove', e => {
+  if (!game) return;
   const rect = canvas.getBoundingClientRect();
   const mouseY = e.clientY - rect.top;
   game.player.targetY = Math.min(Math.max(mouseY - game.player.shipWidth / 2, 0), game.height - game.player.shipWidth);
 });
-
 canvas.addEventListener('mousedown', () => { isMouseDown = true; });
 canvas.addEventListener('mouseup', () => { isMouseDown = false; });
 
 canvas.addEventListener('dblclick', () => {
+  if (!game) return;
   if (game.doubleGunCooldown <= 0 && !game.doubleGunActive) {
     game.doubleGunActive = true;
-    game.doubleGunTimer = 7000; // 7 seconds
-    game.doubleGunCooldown = 12000; // 12 seconds cooldown
-    doubleGunPopup.textContent = "Double Gun Mode Activated!";
-    doubleGunPopup.style.display = 'block';
-    setTimeout(() => doubleGunPopup.style.display = "none", 2000);
+    game.doubleGunTimer = 7000;
+    game.doubleGunCooldown = 12000;
+    if (doubleGunPopup) {
+      doubleGunPopup.textContent = "Double Gun Mode Activated!";
+      doubleGunPopup.style.display = 'block';
+      setTimeout(() => doubleGunPopup.style.display = "none", 2000);
+    }
   }
 });
 
@@ -693,4 +600,3 @@ startGame();
 </script>
 </body>
 </html>
-```

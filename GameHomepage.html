@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Space Ship Adventure Game</title>
+  <style>
+    body {
+      margin: 0; background: #080c21;
+      font-family: 'Orbitron', 'Arial', sans-serif;
+      color: #eef;
+      min-height: 100vh;
+      position: relative;
+      overflow-x: hidden;
+    }
+    .stars {
+      position: fixed;
+      width: 100vw;
+      height: 100vh;
+      background: transparent url('https://raw.githubusercontent.com/VincentGarreau/particles.js/master/demo/img/stars.png') repeat top center;
+      z-index: 0;
+      animation: moveStars 50s linear infinite;
+    }
+    @keyframes moveStars {
+      from {background-position: 0 0;}
+      to {background-position: 700px 400px;}
+    }
+    .container {
+      position: relative;
+      z-index: 1;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      min-height: 100vh;
+    }
+    h1 {
+      font-size: 3.7rem;
+      margin: 70px 0 10px 0;
+      letter-spacing: 5px;
+      color: #aaf7ff;
+      text-shadow: 0 0 8px #1ff, 0 0 10px #147ffe;
+    }
+    .subtitle { font-size: 1.5rem; color: #ffedcd; margin-bottom: 60px; text-shadow: 0 0 4px #1ff, 0 0 12px #01485e;}
+    .new-game-btn {
+      background: linear-gradient(95deg, #00ffd5 0%, #0e5af9 96%);
+      border: none;
+      color: #202b40;
+      font-size: 1.6rem;
+      font-weight: bold;
+      border-radius: 40px;
+      padding: 18px 65px;
+      cursor: pointer;
+      transition: background 0.3s, transform 0.15s;
+      box-shadow: 0 0 16px #1ff, 0 4px 28px #223355;
+      margin-bottom: 55px;
+    }
+    .new-game-btn:hover {
+      background: linear-gradient(100deg, #0e5af9 30%, #00ffd5 100%);
+      color: #fff;
+      transform: scale(1.06);
+    }
+    .mode-section {
+      margin-top: 10px; width: 100%; max-width: 990px;
+      text-align: center;
+    }
+    .mode-title {
+      font-size: 2.1rem; margin-bottom: 28px; color: #ffe98c; letter-spacing: 2px;
+      text-shadow: 0 0 7px #00aaff;
+    }
+    .modes-grid {
+      display: flex; justify-content: center; gap: 48px; margin-bottom: 30px;
+    }
+    .mode-card {
+      background: rgba(14,28,48,0.87);
+      border: 2px solid #34c3fc;
+      border-radius: 20px;
+      padding: 34px 32px;
+      min-width: 215px; max-width:270px;
+      box-shadow: 0 0 18px #1fd, 0 0 29px #147ffe44;
+      color: #fff;
+      transition: transform 0.22s, box-shadow 0.22s;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      font-size: 1.27rem;
+    }
+    .mode-card:hover {
+      transform: translateY(-14px) scale(1.045);
+      border-color: #ffe589;
+      box-shadow: 0 0 30px #ccf66c, 0 8px 45px #147ffe88;
+    }
+    .mode-icon {
+      font-size: 3.5rem;
+      margin-bottom: 16px;
+      color: #56fae0;
+      text-shadow: 0 0 10px #20dfbb;
+    }
+    @media (max-width: 900px) {
+      .modes-grid {flex-direction: column; align-items:center; gap:18px;}
+      .mode-card {width:80vw; min-width:200px;}
+    }
+  </style>
+  <!-- Google Fonts for sci-fi look -->
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="stars"></div>
+  <div class="container">
+    <h1>Space Ship </h1>
+    <div class="subtitle">Arcade game adventure among the stars</div>
+    <button class="new-game-btn" onclick="window.location.href='newgame.html'">New Game</button>
+    <section class="mode-section">
+      <div class="mode-title">Select Game Mode</div>
+      <div class="modes-grid">
+        <div class="mode-card" onclick="window.location.href='target_in_time.html'">
+          <div class="mode-icon">⏰</div>
+          <b>Target in Time</b>
+          <p>reach the target before the timer runs out!</p>
+        </div>
+        <div class="mode-card" onclick="window.location.href='survival.html'">
+          <div class="mode-icon">❤️‍🔥</div>
+          <b>Survival</b>
+          <p>Last as long as you can with a single life and limited fuel.</p>
+        </div>
+        <div class="mode-card" onclick="window.location.href='freemodetype.html'">
+          <div class="mode-icon">🌌</div>
+          <b>Free Mode</b>
+          <p>Practice, explore, and have fun in endless space!</p>
+        </div>
+      </div>
+    </section>
+  </div>
+</body>
+</html>
